@@ -168,6 +168,7 @@ from superset.versioning.api_helpers import (
     current_entity_version_info,
     get_version_endpoint,
     list_versions_endpoint,
+    version_update_response,
 )
 from superset.versioning.etag import set_version_etag
 from superset.versioning.schemas import VersionListItemSchema
@@ -972,19 +973,15 @@ class DashboardRestApi(
             new_info = current_entity_version_info(
                 Dashboard, changed_model.id, changed_model.uuid
             )
-            response = self.response(
-                200,
-                id=changed_model.id,
-                result=item,
+            response = version_update_response(
+                self,
+                changed_model.id,
+                item,
+                old_info,
+                new_info,
+                new_info.version_uuid,
                 last_modified_time=last_modified_time,
-                old_version=old_info.version,
-                new_version=new_info.version,
-                old_transaction_id=old_info.transaction_id,
-                new_transaction_id=new_info.transaction_id,
-                old_version_uuid=old_info.version_uuid,
-                new_version_uuid=new_info.version_uuid,
             )
-            set_version_etag(response, new_info.version_uuid)
         except DashboardNotFoundError:
             response = self.response_404()
         except DashboardForbiddenError:

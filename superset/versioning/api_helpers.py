@@ -42,7 +42,7 @@ from flask_appbuilder import Model
 from superset.daos.version import VersionDAO
 from superset.exceptions import SupersetSecurityException
 from superset.extensions import db, security_manager
-from superset.versioning.etag import set_version_etag_by_uuid
+from superset.versioning.etag import set_version_etag, set_version_etag_by_uuid
 from superset.versioning.schemas import VersionListItemSchema
 
 #: Serializer for version rows (list items and the ``_version`` block of a
@@ -126,6 +126,38 @@ def current_entity_etag_uuid(
         model_cls, entity_id, entity_uuid
     )
     return str(version_uuid) if version_uuid else None
+
+
+def version_update_response(
+    api: Any,
+    entity_id: int,
+    item: Any,
+    old_info: EntityVersionInfo,
+    new_info: EntityVersionInfo,
+    etag_version_uuid: str | None,
+    **extra: Any,
+) -> Response:
+    """Build the 200 response of a ``PUT /api/v1/{resource}/<pk>`` endpoint.
+
+    Carries the before/after version identifiers every versioned resource
+    reports, plus any resource-specific *extra* payload keys, and stamps the
+    ETag with *etag_version_uuid* — the entity's live version uuid, which is
+    not always *new_info*'s (a save that runs a second command afterwards,
+    such as a dataset column refresh, ends on that command's transaction).
+    """
+    response = api.response(
+        200,
+        id=entity_id,
+        result=item,
+        old_version=old_info.version,
+        new_version=new_info.version,
+        old_transaction_id=old_info.transaction_id,
+        new_transaction_id=new_info.transaction_id,
+        old_version_uuid=old_info.version_uuid,
+        new_version_uuid=new_info.version_uuid,
+        **extra,
+    )
+    return set_version_etag(response, etag_version_uuid)
 
 
 # Maps the versioned model class name to the keyword argument

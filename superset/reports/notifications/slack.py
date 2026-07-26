@@ -15,33 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 import logging
-from collections.abc import Sequence
-from io import IOBase
-from typing import Union
 
 import backoff
 from flask import g
-from slack_sdk.errors import (
-    BotUserAccessError,
-    SlackApiError,
-    SlackClientConfigurationError,
-    SlackClientError,
-    SlackClientNotConnectedError,
-    SlackObjectFormationError,
-    SlackRequestError,
-    SlackTokenRotationError,
-)
+from slack_sdk.errors import SlackApiError
 
 from superset.reports.models import ReportRecipientType
 from superset.reports.notifications.base import BaseNotification
-from superset.reports.notifications.exceptions import (
-    NotificationAuthorizationException,
-    NotificationMalformedException,
-    NotificationParamException,
-    NotificationUnprocessableException,
-    SlackV1NotificationError,
+from superset.reports.notifications.exceptions import SlackV1NotificationError
+from superset.reports.notifications.slack_mixin import (
+    SlackMixin,
+    translate_slack_exceptions,
 )
-from superset.reports.notifications.slack_mixin import SlackMixin
 from superset.utils import json
 from superset.utils.core import recipients_string_to_list
 from superset.utils.decorators import statsd_gauge
@@ -77,19 +62,6 @@ class SlackNotification(SlackMixin, BaseNotification):  # pylint: disable=too-fe
 
         return ",".join(recipients_string_to_list(recipient_str))
 
-    def _get_inline_files(
-        self,
-    ) -> tuple[Union[str, None], Sequence[Union[str, IOBase, bytes]]]:
-        if self._content.csv:
-            return ("csv", [self._content.csv])
-        if self._content.xlsx:
-            return ("xlsx", [self._content.xlsx])
-        if self._content.screenshots:
-            return ("png", self._content.screenshots)
-        if self._content.pdf:
-            return ("pdf", [self._content.pdf])
-        return (None, [])
-
     @backoff.on_exception(backoff.expo, SlackApiError, factor=10, base=2, max_tries=5)
     @statsd_gauge("reports.slack.send")
     def send(self) -> None:
@@ -103,7 +75,7 @@ class SlackNotification(SlackMixin, BaseNotification):  # pylint: disable=too-fe
             # if we can fetch channels, then raise an error and use the v2 api
             raise SlackV1NotificationError
 
-        try:
+        with translate_slack_exceptions():
             client = get_slack_client()
             channel = self._get_channel()
             # files_upload returns SlackResponse as we run it in sync mode.
@@ -124,19 +96,3 @@ class SlackNotification(SlackMixin, BaseNotification):  # pylint: disable=too-fe
                     "execution_id": global_logs_context.get("execution_id"),
                 },
             )
-        except (
-            BotUserAccessError,
-            SlackRequestError,
-            SlackClientConfigurationError,
-        ) as ex:
-            raise NotificationParamException(str(ex)) from ex
-        except SlackObjectFormationError as ex:
-            raise NotificationMalformedException(str(ex)) from ex
-        except SlackTokenRotationError as ex:
-            raise NotificationAuthorizationException(str(ex)) from ex
-        except (SlackClientNotConnectedError, SlackApiError) as ex:
-            raise NotificationUnprocessableException(str(ex)) from ex
-        except SlackClientError as ex:
-            # this is the base class for all slack client errors
-            # keep it last so that it doesn't interfere with @backoff
-            raise NotificationUnprocessableException(str(ex)) from ex
