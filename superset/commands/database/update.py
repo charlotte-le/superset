@@ -81,7 +81,12 @@ class UpdateDatabaseCommand(BaseCommand):
         force_update: bool = False
         try:
             original_catalog = self._model.get_default_catalog()
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
+            logger.warning(
+                "Unable to get the default catalog of database %s, assuming it changed",
+                self._model.database_name,
+                exc_info=True,
+            )
             original_catalog = None
             force_update = True
 

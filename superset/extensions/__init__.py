@@ -128,8 +128,17 @@ class UIManifestProcessor:
                 # templates
                 full_manifest = json.load(f)
                 self.manifest = full_manifest.get("entrypoints", {})
-        except Exception:  # pylint: disable=broad-except  # noqa: S110
-            pass
+        except Exception as ex:  # pylint: disable=broad-except
+            # A missing or malformed manifest serves an assetless page, which is
+            # indistinguishable from a broken build without a log line. Logged
+            # without a traceback since it is re-parsed on every request in
+            # debug mode.
+            logging.warning(
+                "Failed to parse the UI manifest at %s, "
+                "frontend assets will not be served: %s",
+                self.manifest_file,
+                ex,
+            )
 
     def get_manifest_files(self, bundle: str, asset_type: str) -> list[str]:
         if self.app and self.app.debug:

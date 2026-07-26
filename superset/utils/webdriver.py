@@ -157,14 +157,14 @@ class _PlaywrightBrowserManager:
         if self._browser is not None:
             try:
                 self._browser.close()
-            except Exception:  # noqa: S110
-                pass
+            except Exception:  # pylint: disable=broad-except
+                logger.warning("Failed to close the browser", exc_info=True)
             self._browser = None
         if self._playwright is not None:
             try:
                 self._playwright.stop()
-            except Exception:  # noqa: S110
-                pass
+            except Exception:  # pylint: disable=broad-except
+                logger.warning("Failed to stop Playwright", exc_info=True)
             self._playwright = None
 
 
@@ -852,12 +852,12 @@ class WebDriverSelenium(WebDriverProxy):
         # and catch-all exceptions
         try:
             retry_call(self._driver.close, max_tries=tries)
-        except Exception:  # pylint: disable=broad-except  # noqa: S110
-            pass
+        except Exception:  # pylint: disable=broad-except
+            logger.warning("Failed to close the webdriver", exc_info=True)
         try:
             self._driver.quit()
-        except Exception:  # pylint: disable=broad-except  # noqa: S110
-            pass
+        except Exception:  # pylint: disable=broad-except
+            logger.warning("Failed to quit the webdriver", exc_info=True)
         self._driver = None
 
     @staticmethod

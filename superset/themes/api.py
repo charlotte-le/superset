@@ -620,6 +620,7 @@ class ThemeRestApi(BaseSupersetModelRestApi):
         except ThemeNotFoundError:
             return self.response_404()
         except Exception as ex:
+            logger.exception("Unexpected error in PUT /theme/%s/set_system_default", pk)
             return self.response_422(message=str(ex))
 
     @expose("/<int:pk>/set_system_dark", methods=("PUT",))
@@ -687,6 +688,7 @@ class ThemeRestApi(BaseSupersetModelRestApi):
         except ThemeNotFoundError:
             return self.response_404()
         except Exception as ex:
+            logger.exception("Unexpected error in PUT /theme/%s/set_system_dark", pk)
             return self.response_422(message=str(ex))
 
     @expose("/unset_system_default", methods=("DELETE",))
@@ -737,6 +739,7 @@ class ThemeRestApi(BaseSupersetModelRestApi):
             ClearSystemDefaultThemeCommand().run()
             return self.response(200, result="success")
         except Exception as ex:
+            logger.exception("Unexpected error in DELETE /theme/unset_system_default")
             return self.response_422(message=str(ex))
 
     @expose("/unset_system_dark", methods=("DELETE",))
@@ -787,4 +790,5 @@ class ThemeRestApi(BaseSupersetModelRestApi):
             ClearSystemDarkThemeCommand().run()
             return self.response(200, result="success")
         except Exception as ex:
+            logger.exception("Unexpected error in DELETE /theme/unset_system_dark")
             return self.response_422(message=str(ex))

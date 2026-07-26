@@ -96,7 +96,9 @@ const DndFilterSelect = (props: DndFilterSelectProps) => {
           typeof datasource.extra === 'string'
             ? JSON.parse(datasource.extra)
             : datasource.extra;
-      } catch {} // eslint-disable-line no-empty
+      } catch (error) {
+        logging.warn('Unable to parse the datasource extra config', error);
+      }
     }
     return extra;
   }, [datasource?.extra]);

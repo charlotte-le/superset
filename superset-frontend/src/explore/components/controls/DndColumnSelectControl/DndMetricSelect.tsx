@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { nanoid } from 'nanoid';
 import { t, tn } from '@apache-superset/core/translation';
+import { logging } from '@apache-superset/core/utils';
 import {
   ensureIsArray,
   isAdhocMetricSimple,
@@ -139,7 +140,9 @@ const DndMetricSelect = (props: any) => {
     if (datasource?.extra) {
       try {
         extra = JSON.parse(datasource.extra);
-      } catch {} // eslint-disable-line no-empty
+      } catch (error) {
+        logging.warn('Unable to parse the datasource extra config', error);
+      }
     }
     return extra;
   }, [datasource?.extra]);
@@ -156,7 +159,9 @@ const DndMetricSelect = (props: any) => {
     if (datasource.extra) {
       try {
         parsedExtra = JSON.parse(datasource.extra as string);
-      } catch {} // eslint-disable-line no-empty
+      } catch (error) {
+        logging.warn('Unable to parse the datasource extra config', error);
+      }
     }
     return {
       ...datasource,

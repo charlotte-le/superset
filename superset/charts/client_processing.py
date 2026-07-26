@@ -297,9 +297,14 @@ def table(
             format_ = "{:" + config["d3NumberFormat"] + "}"
             try:
                 df[column] = df[column].apply(format_.format)
-            except Exception:  # pylint: disable=broad-except  # noqa: S110
+            except Exception:  # pylint: disable=broad-except
                 # if we can't format the column for any reason, send as is
-                pass
+                logger.warning(
+                    "Unable to apply format %s to column %s",
+                    format_,
+                    column,
+                    exc_info=True,
+                )
 
     return df
 

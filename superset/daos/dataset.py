@@ -850,7 +850,12 @@ class DatasetDAO(BaseDAO[SqlaTable]):
         for database_obj in db_objs:
             try:
                 engines[database_obj.id] = database_obj.backend
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+                logger.warning(
+                    "Unable to determine the backend of database %s",
+                    database_obj.id,
+                    exc_info=True,
+                )
                 engines[database_obj.id] = ""
         return engines
 

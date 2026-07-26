@@ -202,6 +202,11 @@ def etag_cache(  # noqa: C901
                 except Exception:  # pylint: disable=broad-except
                     # If there's no access, bypass the cache and let the function
                     # handle the response.
+                    logger.debug(
+                        "Bypassing the response cache for %s",
+                        f.__name__,
+                        exc_info=True,
+                    )
                     return f(*args, **kwargs)
 
             # for POST requests we can't set cache headers, use the response
