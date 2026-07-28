@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from sqlalchemy.engine.default import DefaultDialect
 
 from superset.connectors.sqla.models import SqlaTable, TableColumn
 from superset.datasets.datetime_format_detector import DatetimeFormatDetector
@@ -35,9 +36,7 @@ def mock_dataset() -> MagicMock:
 
     # Mock the database engine and dialect for identifier quoting
     mock_engine = MagicMock()
-    mock_dialect = MagicMock()
-    mock_dialect.identifier_preparer.quote = lambda x: f'"{x}"'
-    mock_engine.dialect = mock_dialect
+    mock_engine.dialect = DefaultDialect()
 
     # Mock the context manager returned by get_sqla_engine()
     dataset.database.get_sqla_engine.return_value.__enter__.return_value = mock_engine
