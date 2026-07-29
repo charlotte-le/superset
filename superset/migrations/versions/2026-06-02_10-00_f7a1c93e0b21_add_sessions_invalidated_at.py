@@ -147,7 +147,7 @@ def _backfill_disabled_users():
     existing = {
         row._mapping["user_id"]
         for row in bind.execute(
-            sa.text(f"SELECT user_id FROM {TABLE}")  # noqa: S608
+            sa.select(sa.column("user_id")).select_from(sa.table(TABLE))
         ).fetchall()
     }
 
