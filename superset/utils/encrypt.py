@@ -21,7 +21,15 @@ from typing import Any, Optional
 
 from flask import current_app, Flask
 from flask_babel import lazy_gettext as _
-from sqlalchemy import Table, text, TypeDecorator
+from sqlalchemy import (
+    and_,
+    bindparam,
+    column,
+    Table,
+    table as sa_table,
+    text,
+    TypeDecorator,
+)
 from sqlalchemy.engine import Connection, Dialect, Row
 from sqlalchemy_utils import EncryptedType as SqlaEncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import (
@@ -515,13 +523,18 @@ class SecretsMigrator:
         if not re_encrypted_columns:
             return
 
-        set_cols = ",".join(f"{name} = :{name}" for name in re_encrypted_columns)
-        where_clause = " AND ".join(f"{pk} = :_pk_{pk}" for pk in pk_columns)
         pk_bind = {f"_pk_{pk}": row._mapping[pk] for pk in pk_columns}
+        target = sa_table(
+            table_name,
+            *(column(name) for name in [*re_encrypted_columns, *pk_columns]),
+        )
+        update_stmt = (
+            target.update()
+            .where(and_(*(target.c[pk] == bindparam(f"_pk_{pk}") for pk in pk_columns)))
+            .values({name: bindparam(name) for name in re_encrypted_columns})
+        )
         conn.execute(
-            text(
-                f"UPDATE {table_name} SET {set_cols} WHERE {where_clause}"  # noqa: S608
-            ),
+            update_stmt,
             {**pk_bind, **re_encrypted_columns},
         )
 
