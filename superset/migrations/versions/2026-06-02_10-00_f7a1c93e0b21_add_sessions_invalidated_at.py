@@ -107,7 +107,10 @@ def _dedupe_user_attributes():
                     updates[column] = dup[column]
                     break
         if updates:
-            table = sa.table(TABLE, sa.column("id"), *(sa.column(c) for c in updates))
+            table = sa.table(
+                TABLE,
+                *(sa.column(c) for c in ("id", *updates)),
+            )
             bind.execute(
                 table.update().where(table.c.id == keeper["id"]).values(**updates)
             )
