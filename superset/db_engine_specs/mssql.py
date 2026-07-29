@@ -48,6 +48,11 @@ CONNECTION_HOST_DOWN_REGEX = re.compile(
     r"Net-Lib error during Operation timed out \(60\)"
 )
 
+FUNCTION_ALIAS_REQUIRED_MESSAGE = (
+    "All your SQL functions need to have an alias on MSSQL. "
+    "For example: SELECT COUNT(*) AS C1 FROM TABLE1"
+)
+
 
 class MssqlEngineSpec(BaseEngineSpec):
     engine = "mssql"
@@ -192,10 +197,7 @@ class MssqlEngineSpec(BaseEngineSpec):
     @classmethod
     def extract_error_message(cls, ex: Exception) -> str:
         if str(ex).startswith("(8155,"):
-            return (
-                f"{cls.engine} error: All your SQL functions need to "  # noqa: S608
-                "have an alias on MSSQL. For example: SELECT COUNT(*) AS C1 FROM TABLE1"
-            )
+            return f"{cls.engine} error: {FUNCTION_ALIAS_REQUIRED_MESSAGE}"
         return f"{cls.engine} error: {cls._extract_error_message(ex)}"
 
 
