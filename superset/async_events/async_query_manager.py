@@ -80,7 +80,10 @@ def increment_id(entry_id: str) -> str:
     try:
         prefix, last = entry_id[:-1], int(entry_id[-1])
         return prefix + str(last + 1)
-    except Exception:  # pylint: disable=broad-except
+    except (IndexError, ValueError):
+        # An unparseable ID is returned as is, which replays the entry it points
+        # at; log it so the duplicate events can be traced back here.
+        logger.warning("Unable to increment the entry ID %s", entry_id)
         return entry_id
 
 

@@ -230,8 +230,8 @@ class WebDriverPool:
         try:
             try:
                 pooled_driver.driver.close()
-            except Exception:  # pylint: disable=broad-except  # noqa: S110
-                pass
+            except Exception:  # pylint: disable=broad-except
+                logger.debug("Failed to close WebDriver window", exc_info=True)
             pooled_driver.driver.quit()
             self._stats["destroyed"] += 1
             logger.debug("Destroyed WebDriver instance")

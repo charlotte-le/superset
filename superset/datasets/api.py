@@ -85,6 +85,7 @@ from superset.datasets.schemas import (
     openapi_spec_methods_override,
 )
 from superset.exceptions import (
+    SupersetSecurityException,
     SupersetSyntaxErrorException,
     SupersetTemplateException,
 )
@@ -990,7 +991,7 @@ class DatasetRestApi(SoftDeleteApiMixin, BaseSupersetModelRestApi):
             # Check editorship
             try:
                 security_manager.raise_for_editorship(dataset)
-            except Exception:  # pylint: disable=broad-except
+            except SupersetSecurityException:
                 return self.response_403()
 
             # Detect formats

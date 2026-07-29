@@ -44,6 +44,7 @@ import {
   SelectionChangedEvent,
 } from '@superset-ui/core/components/ThemedAgGridReact';
 import { t } from '@apache-superset/core/translation';
+import { logging } from '@apache-superset/core/utils';
 import {
   AgGridChartState,
   DataRecordValue,
@@ -464,8 +465,9 @@ const AgGridDataTable: FunctionComponent<AgGridTableProps> = memo(
               applyOrder: reconciledColumnState.applyOrder,
             });
           }
-        } catch {
-          // Silently fail if state restoration fails
+        } catch (error) {
+          // The grid keeps its default column state when restoration fails
+          logging.warn('Unable to restore the grid column state', error);
         }
       }
     };

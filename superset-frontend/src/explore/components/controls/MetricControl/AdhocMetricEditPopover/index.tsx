@@ -26,6 +26,7 @@ import {
   handleKeyboardActivation,
 } from '@superset-ui/core';
 import { t } from '@apache-superset/core/translation';
+import { logging } from '@apache-superset/core/utils';
 import type { editors } from '@apache-superset/core';
 import { styled } from '@apache-superset/core/theme';
 import Tabs from '@superset-ui/core/components/Tabs';
@@ -434,7 +435,9 @@ function AdhocMetricEditPopover({
   if (datasource?.extra && typeof datasource.extra === 'string') {
     try {
       extra = JSON.parse(datasource.extra) as ExtraConfig;
-    } catch {} // eslint-disable-line no-empty
+    } catch (error) {
+      logging.warn('Unable to parse the datasource extra config', error);
+    }
   }
 
   return (

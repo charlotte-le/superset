@@ -28,5 +28,6 @@ def get_current_user() -> Optional[User]:
         from flask import g
 
         return getattr(g, "user", None)
-    except Exception:
+    except RuntimeError:
+        # No application context, e.g. when called from a worker thread.
         return None

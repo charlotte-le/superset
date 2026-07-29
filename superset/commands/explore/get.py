@@ -179,6 +179,11 @@ class GetExploreCommand(BaseCommand, ABC):
                         for f in detailed_rls
                     ]
             except Exception:  # pylint: disable=broad-except
+                logger.warning(
+                    "Unable to fetch RLS filters for dataset %s",
+                    self._datasource_id,
+                    exc_info=True,
+                )
                 datasource_data["rls_filters"] = []
 
         metadata = None
