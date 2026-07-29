@@ -15,32 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 import logging
-from collections.abc import Callable, Sequence
-from io import IOBase
-from typing import List, Union
+from collections.abc import Callable
+from typing import List
 
 import backoff
 from flask import g
-from slack_sdk.errors import (
-    BotUserAccessError,
-    SlackApiError,
-    SlackClientConfigurationError,
-    SlackClientError,
-    SlackClientNotConnectedError,
-    SlackObjectFormationError,
-    SlackRequestError,
-    SlackTokenRotationError,
-)
+from slack_sdk.errors import SlackApiError, SlackClientNotConnectedError
 
 from superset.reports.models import ReportRecipientType
 from superset.reports.notifications.base import BaseNotification
-from superset.reports.notifications.exceptions import (
-    NotificationAuthorizationException,
-    NotificationMalformedException,
-    NotificationParamException,
-    NotificationUnprocessableException,
+from superset.reports.notifications.exceptions import NotificationParamException
+from superset.reports.notifications.slack_mixin import (
+    SlackMixin,
+    translate_slack_exceptions,
 )
-from superset.reports.notifications.slack_mixin import SlackMixin
 from superset.utils import json
 from superset.utils.core import recipients_string_to_list
 from superset.utils.decorators import statsd_gauge
@@ -115,23 +103,10 @@ class SlackV2Notification(SlackMixin, BaseNotification):  # pylint: disable=too-
 
         return recipients_string_to_list(recipient_str)
 
-    def _get_inline_files(
-        self,
-    ) -> tuple[Union[str, None], Sequence[Union[str, IOBase, bytes]]]:
-        if self._content.csv:
-            return ("csv", [self._content.csv])
-        if self._content.xlsx:
-            return ("xlsx", [self._content.xlsx])
-        if self._content.screenshots:
-            return ("png", self._content.screenshots)
-        if self._content.pdf:
-            return ("pdf", [self._content.pdf])
-        return (None, [])
-
     @statsd_gauge("reports.slack.send")
     def send(self) -> None:
         global_logs_context = getattr(g, "logs_context", {}) or {}
-        try:
+        with translate_slack_exceptions():
             client = get_slack_client()
             title = self._content.name
             body = self._get_body(content=self._content)
@@ -165,19 +140,3 @@ class SlackV2Notification(SlackMixin, BaseNotification):  # pylint: disable=too-
                     "execution_id": global_logs_context.get("execution_id"),
                 },
             )
-        except (
-            BotUserAccessError,
-            SlackRequestError,
-            SlackClientConfigurationError,
-        ) as ex:
-            raise NotificationParamException(str(ex)) from ex
-        except SlackObjectFormationError as ex:
-            raise NotificationMalformedException(str(ex)) from ex
-        except SlackTokenRotationError as ex:
-            raise NotificationAuthorizationException(str(ex)) from ex
-        except (SlackClientNotConnectedError, SlackApiError) as ex:
-            raise NotificationUnprocessableException(str(ex)) from ex
-        except SlackClientError as ex:
-            # this is the base class for all slack client errors
-            # keep it last so that it doesn't interfere with @backoff
-            raise NotificationUnprocessableException(str(ex)) from ex

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from collections.abc import Callable
 from typing import Any, Optional, Union
 
 from superset import security_manager
@@ -52,6 +53,45 @@ def to_object_model(
 
         return DatasetDAO.find_by_id(object_id, skip_base_filter=skip_base_filter)
     return None
+
+
+#: Keyword argument ``security_manager.raise_for_access`` expects for each
+#: taggable object type.
+_RAISE_FOR_ACCESS_KWARG: dict[ObjectType, str] = {
+    ObjectType.dashboard: "dashboard",
+    ObjectType.chart: "chart",
+    ObjectType.query: "query",
+    ObjectType.dataset: "datasource",
+}
+
+
+def validate_object_access(
+    object_type: ObjectType,
+    object_id: int,
+    exceptions: list[Any],
+    error: Callable[[str], Exception],
+) -> None:
+    """Validate that the current user has access to the target object.
+
+    Appends an *error*-built exception to *exceptions* when access is denied or
+    the object type has no read-access gate. *error* is the command's failure
+    exception class, so each caller reports through its own error type.
+    """
+    # Skip base filter so we can distinguish "not found" from "no access"
+    target_object = to_object_model(object_type, object_id, skip_base_filter=True)
+    if not target_object:
+        # Allow operation on stale references; no object to authorize against
+        return
+
+    kwarg = _RAISE_FOR_ACCESS_KWARG.get(object_type)
+    if kwarg is None:
+        exceptions.append(error(f"Access validation not supported for {object_type}"))
+        return
+
+    try:
+        security_manager.raise_for_access(**{kwarg: target_object})
+    except SupersetSecurityException:
+        exceptions.append(error(f"Access denied for {object_type} {object_id}"))
 
 
 def current_user_can_modify_object(model: Any) -> bool:

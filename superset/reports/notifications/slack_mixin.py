@@ -15,17 +15,79 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from io import IOBase
+from typing import Union
+
 import pandas as pd
 from flask_babel import gettext as __
+from slack_sdk.errors import (
+    BotUserAccessError,
+    SlackApiError,
+    SlackClientConfigurationError,
+    SlackClientError,
+    SlackClientNotConnectedError,
+    SlackObjectFormationError,
+    SlackRequestError,
+    SlackTokenRotationError,
+)
 
 from superset.reports.notifications.base import NotificationContent
+from superset.reports.notifications.exceptions import (
+    NotificationAuthorizationException,
+    NotificationMalformedException,
+    NotificationParamException,
+    NotificationUnprocessableException,
+)
 
 # Slack only allows Markdown messages up to 4k chars
 MAXIMUM_MESSAGE_SIZE = 4000
 
 
+@contextmanager
+def translate_slack_exceptions() -> Iterator[None]:
+    """Map ``slack_sdk`` errors onto Superset notification exceptions."""
+    try:
+        yield
+    except (
+        BotUserAccessError,
+        SlackRequestError,
+        SlackClientConfigurationError,
+    ) as ex:
+        raise NotificationParamException(str(ex)) from ex
+    except SlackObjectFormationError as ex:
+        raise NotificationMalformedException(str(ex)) from ex
+    except SlackTokenRotationError as ex:
+        raise NotificationAuthorizationException(str(ex)) from ex
+    except (SlackClientNotConnectedError, SlackApiError) as ex:
+        raise NotificationUnprocessableException(str(ex)) from ex
+    except SlackClientError as ex:
+        # this is the base class for all slack client errors
+        # keep it last so that it doesn't interfere with @backoff
+        raise NotificationUnprocessableException(str(ex)) from ex
+
+
 # pylint: disable=too-few-public-methods
 class SlackMixin:
+    # Set by ``BaseNotification.__init__``, which every Slack notification also
+    # inherits from.
+    _content: NotificationContent
+
+    def _get_inline_files(
+        self,
+    ) -> tuple[Union[str, None], Sequence[Union[str, IOBase, bytes]]]:
+        """The file type and payload(s) to attach to the message, if any."""
+        if self._content.csv:
+            return ("csv", [self._content.csv])
+        if self._content.xlsx:
+            return ("xlsx", [self._content.xlsx])
+        if self._content.screenshots:
+            return ("png", self._content.screenshots)
+        if self._content.pdf:
+            return ("pdf", [self._content.pdf])
+        return (None, [])
+
     def _message_template(
         self,
         content: NotificationContent,
