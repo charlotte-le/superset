@@ -37,7 +37,7 @@ from sqlalchemy.engine.base import Engine
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.engine.url import URL
-from sqlalchemy.sql import column as sql_column, select, sqltypes
+from sqlalchemy.sql import column as sql_column, select, sqltypes, text
 from sqlalchemy.sql.expression import table as sql_table
 
 from superset.constants import TimeGrain
@@ -1114,6 +1114,21 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
             return f"`{escaped_catalog}.{escaped_schema}.INFORMATION_SCHEMA.TABLES`"
         return f"`{escaped_schema}.INFORMATION_SCHEMA.TABLES`"
 
+    @staticmethod
+    def _table_names_by_type_query(information_schema: str, table_type: str) -> str:
+        """
+        Build a query returning the names of the tables of a given type.
+
+        ``information_schema`` is an already escaped and quoted reference to the
+        ``INFORMATION_SCHEMA.TABLES`` view of a given catalog/schema.
+        """
+        statement = (
+            select(sql_column("table_name"))
+            .select_from(text(information_schema))
+            .where(sql_column("table_type") == table_type)
+        )
+        return str(statement.compile(compile_kwargs={"literal_binds": True}))
+
     @classmethod
     def get_materialized_view_names(
         cls,
@@ -1132,11 +1147,7 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
 
         catalog = database.get_default_catalog()
         information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'MATERIALIZED VIEW'
-        """  # noqa: S608
+        query = cls._table_names_by_type_query(information_schema, "MATERIALIZED VIEW")
 
         materialized_views = set()
         try:
@@ -1172,11 +1183,7 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
 
         catalog = database.get_default_catalog()
         information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'VIEW'
-        """  # noqa: S608
+        query = cls._table_names_by_type_query(information_schema, "VIEW")
 
         views = set()
         try:
