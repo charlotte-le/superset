@@ -39,6 +39,9 @@ logger = logging.getLogger(__name__)
 
 SQL_LAB_QUERY_PARAMS_TO_SANITIZE = frozenset({"sql", "name"})
 
+# Starter query pre-populated in the SQL Lab editor; never executed server-side.
+CONTEXT_QUERY_TEMPLATE = "SELECT * FROM {table} LIMIT 100;"
+
 
 def _sanitize_sql_lab_url_for_llm_context(url: str) -> str:
     """Wrap user-controlled SQL Lab query values while preserving navigation."""
@@ -150,7 +153,9 @@ def open_sql_lab_with_context(
                 else:
                     table_reference = request.dataset_in_context
 
-                context_comment += f"\nSELECT * FROM {table_reference} LIMIT 100;"
+                context_comment += "\n" + CONTEXT_QUERY_TEMPLATE.format(
+                    table=table_reference
+                )
                 params["sql"] = context_comment
 
         # Construct SQL Lab URL with full base URL
