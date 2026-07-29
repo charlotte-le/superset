@@ -50,14 +50,7 @@ SELECT_ATTRIBUTES_SQL = (
     "FROM user_attribute ORDER BY id"
 )
 DELETE_ATTRIBUTE_SQL = "DELETE FROM user_attribute WHERE id = :id"
-MERGE_COLUMN_SQL = {
-    "avatar_url": "UPDATE user_attribute SET avatar_url = :value WHERE id = :id",
-    "welcome_dashboard_id": "UPDATE user_attribute"
-    " SET welcome_dashboard_id = :value WHERE id = :id",
-    "sessions_invalidated_at": "UPDATE user_attribute"
-    " SET sessions_invalidated_at = :value WHERE id = :id",
-}
-MERGE_COLUMNS = tuple(MERGE_COLUMN_SQL)
+MERGE_COLUMNS = ("avatar_url", "welcome_dashboard_id", "sessions_invalidated_at")
 SELECT_USER_IDS_SQL = "SELECT user_id FROM user_attribute"
 STAMP_EPOCH_SQL = (
     "UPDATE user_attribute SET sessions_invalidated_at = :now, changed_on = :now "
@@ -118,16 +111,22 @@ def _dedupe_user_attributes():
         # Rows are ordered by id, so the first is the keeper.
         keeper = user_rows[0]
         duplicates = user_rows[1:]
+        updates = {}
         for column in MERGE_COLUMNS:
             if keeper[column] is not None:
                 continue
             for dup in duplicates:
                 if dup[column] is not None:
-                    bind.execute(
-                        sa.text(MERGE_COLUMN_SQL[column]),
-                        {"value": dup[column], "id": keeper["id"]},
-                    )
+                    updates[column] = dup[column]
                     break
+        if updates:
+            table = sa.table(
+                TABLE,
+                *(sa.column(c) for c in ("id", *updates)),
+            )
+            bind.execute(
+                table.update().where(table.c.id == keeper["id"]).values(**updates)
+            )
         bind.execute(
             sa.text(DELETE_ATTRIBUTE_SQL),
             [{"id": dup["id"]} for dup in duplicates],
