@@ -1106,6 +1106,21 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
             # We will return the original exception
             return exception
 
+    # Static template; the only interpolated values are a quoted-and-escaped
+    # INFORMATION_SCHEMA reference and a hardcoded table type literal.
+    _TABLE_NAMES_BY_TYPE_QUERY = (
+        "SELECT table_name FROM {information_schema} WHERE table_type = '{table_type}'"
+    )
+
+    @classmethod
+    def _table_names_by_type_query(
+        cls, schema: str, catalog: str | None, table_type: str
+    ) -> str:
+        return cls._TABLE_NAMES_BY_TYPE_QUERY.format(
+            information_schema=cls._information_schema_ref(schema, catalog),
+            table_type=table_type,
+        )
+
     @staticmethod
     def _information_schema_ref(schema: str, catalog: str | None) -> str:
         escaped_schema = schema.replace("`", "``")
@@ -1131,12 +1146,7 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
             return set()
 
         catalog = database.get_default_catalog()
-        information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'MATERIALIZED VIEW'
-        """  # noqa: S608
+        query = cls._table_names_by_type_query(schema, catalog, "MATERIALIZED VIEW")
 
         materialized_views = set()
         try:
@@ -1171,12 +1181,7 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
             return set()
 
         catalog = database.get_default_catalog()
-        information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'VIEW'
-        """  # noqa: S608
+        query = cls._table_names_by_type_query(schema, catalog, "VIEW")
 
         views = set()
         try:
