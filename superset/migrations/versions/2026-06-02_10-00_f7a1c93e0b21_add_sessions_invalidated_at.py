@@ -46,14 +46,6 @@ UQ = "uq_user_attribute_user_id"
 
 MERGE_COLUMNS = ("avatar_url", "welcome_dashboard_id", "sessions_invalidated_at")
 
-# Spelled out literally (rather than interpolating ``TABLE``/``COLUMN``) so the
-# statement is a fully static string with no runtime string construction.
-INSERT_EPOCH = (
-    "INSERT INTO user_attribute "
-    "(user_id, sessions_invalidated_at, created_on, changed_on) "
-    "VALUES (:user_id, :now, :now, :now)"
-)
-
 
 def upgrade():
     add_columns(TABLE, sa.Column(COLUMN, sa.DateTime(), nullable=True))
@@ -170,7 +162,10 @@ def _backfill_disabled_users():
             )
         else:
             bind.execute(
-                sa.text(INSERT_EPOCH),
+                sa.text(
+                    "INSERT INTO user_attribute (user_id, sessions_invalidated_at, "
+                    "created_on, changed_on) VALUES (:user_id, :now, :now, :now)"
+                ),
                 {"now": now, "user_id": user_id},
             )
 
