@@ -28,7 +28,7 @@ from uuid import uuid4
 import sqlalchemy.sql.sqltypes
 import sqlalchemy_utils
 from flask_appbuilder import Model
-from sqlalchemy import Column, inspect, MetaData, Table as DBTable, text
+from sqlalchemy import Column, inspect, MetaData, select, Table as DBTable
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql import func
 from sqlalchemy.types import TypeEngine
@@ -287,11 +287,9 @@ def add_sample_rows(model: type[Model], count: int) -> Iterator[Model]:
 
 def get_valid_foreign_key(column: Column) -> Any:
     foreign_key = list(column.foreign_keys)[0]
-    table_name, column_name = foreign_key.target_fullname.split(".", 1)
+    target_column = foreign_key.column
     with db.engine.connect() as conn:
-        return conn.execute(
-            text(f"SELECT {column_name} FROM {table_name} LIMIT 1")  # noqa: S608
-        ).scalar()
+        return conn.execute(select(target_column).limit(1)).scalar()
 
 
 def generate_value(column: Column) -> Any:
