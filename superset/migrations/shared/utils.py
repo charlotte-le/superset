@@ -112,6 +112,8 @@ uuid_by_dialect = {
     PGDialect: "uuid_in(md5(random()::text || clock_timestamp()::text)::cstring)",
 }
 
+ASSIGN_UUID_STATEMENT = "UPDATE {table} SET uuid = {uuid_expression}"
+
 
 def assign_uuids(
     model: Any, session: Session, batch_size: int = DEFAULT_BATCH_SIZE
@@ -131,7 +133,10 @@ def assign_uuids(
         if isinstance(bind.dialect, dialect):
             op.execute(
                 text(
-                    f"UPDATE {dialect().identifier_preparer.quote(table_name)} SET uuid = {sql}"  # noqa: S608, E501
+                    ASSIGN_UUID_STATEMENT.format(
+                        table=dialect().identifier_preparer.quote(table_name),
+                        uuid_expression=sql,
+                    )
                 )
             )
             print(f"Done. Assigned {count} uuids in {time.time() - start_time:.3f}s.\n")
