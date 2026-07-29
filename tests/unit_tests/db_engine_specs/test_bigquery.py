@@ -711,6 +711,29 @@ def test_get_view_names_excludes_materialized_views() -> None:
     assert "MATERIALIZED VIEW" not in executed_query
 
 
+def test_information_schema_ref_rejects_invalid_identifiers() -> None:
+    """
+    Test that identifiers that could break out of the quoted reference are rejected.
+    """
+    from superset.db_engine_specs.bigquery import BigQueryEngineSpec
+
+    assert (
+        BigQueryEngineSpec._information_schema_ref("my_dataset", "my-project")
+        == "`my-project.my_dataset.INFORMATION_SCHEMA.TABLES`"
+    )
+    assert (
+        BigQueryEngineSpec._information_schema_ref("my_dataset", None)
+        == "`my_dataset.INFORMATION_SCHEMA.TABLES`"
+    )
+
+    for schema in ["my`dataset", "my dataset", "my_dataset` UNION SELECT 1 --", ""]:
+        with pytest.raises(ValueError, match="Invalid BigQuery identifier"):
+            BigQueryEngineSpec._information_schema_ref(schema, "my_project")
+
+    with pytest.raises(ValueError, match="Invalid BigQuery identifier"):
+        BigQueryEngineSpec._information_schema_ref("my_dataset", "my`project")
+
+
 def _patch_bq_fetch_deps(
     mocker: MockerFixture, max_mb: int = 200
 ) -> tuple[mock.MagicMock, mock.MagicMock]:

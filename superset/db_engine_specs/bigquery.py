@@ -32,7 +32,7 @@ from flask import current_app, g, has_app_context, has_request_context
 from flask_babel import gettext as __
 from marshmallow import fields, Schema
 from marshmallow.exceptions import ValidationError
-from sqlalchemy import column, func, types
+from sqlalchemy import column, func, text, types
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.engine.reflection import Inspector
@@ -82,6 +82,12 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger()
+
+
+# Project and dataset identifiers accepted by BigQuery: letters, digits,
+# underscores and dashes, with an optional domain prefix for legacy projects
+# (eg, ``example.com:my_project``).
+BQ_IDENTIFIER_REGEX = re.compile(r"^[A-Za-z0-9_-]+(?:[.:][A-Za-z0-9_-]+)?$")
 
 
 # BigQuery string escape sequences keyed off documented escapes in
@@ -1106,13 +1112,32 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
             # We will return the original exception
             return exception
 
-    @staticmethod
-    def _information_schema_ref(schema: str, catalog: str | None) -> str:
-        escaped_schema = schema.replace("`", "``")
-        if catalog:
-            escaped_catalog = catalog.replace("`", "``")
-            return f"`{escaped_catalog}.{escaped_schema}.INFORMATION_SCHEMA.TABLES`"
-        return f"`{escaped_schema}.INFORMATION_SCHEMA.TABLES`"
+    @classmethod
+    def _information_schema_ref(cls, schema: str, catalog: str | None) -> str:
+        """
+        Build a quoted reference to the ``INFORMATION_SCHEMA.TABLES`` view.
+
+        Identifiers are validated against the character set allowed by BigQuery for
+        projects and datasets, since they cannot be passed as query parameters.
+        """
+        parts = [catalog, schema] if catalog else [schema]
+        for part in parts:
+            if not part or not BQ_IDENTIFIER_REGEX.match(part):
+                raise ValueError(f"Invalid BigQuery identifier: {part}")
+
+        return "`" + ".".join([*parts, "INFORMATION_SCHEMA", "TABLES"]) + "`"
+
+    @classmethod
+    def _table_names_query(cls, information_schema: str, table_type: str) -> str:
+        """
+        Build a query returning the names of all tables of a given type.
+        """
+        statement = (
+            select(sql_column("table_name"))
+            .select_from(text(information_schema))
+            .where(sql_column("table_type") == table_type)
+        )
+        return str(statement.compile(compile_kwargs={"literal_binds": True}))
 
     @classmethod
     def get_materialized_view_names(
@@ -1131,15 +1156,11 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
             return set()
 
         catalog = database.get_default_catalog()
-        information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'MATERIALIZED VIEW'
-        """  # noqa: S608
 
         materialized_views = set()
         try:
+            information_schema = cls._information_schema_ref(schema, catalog)
+            query = cls._table_names_query(information_schema, "MATERIALIZED VIEW")
             with database.get_raw_connection(catalog=catalog, schema=schema) as conn:
                 cursor = conn.cursor()
                 cursor.execute(query)
@@ -1171,15 +1192,11 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
             return set()
 
         catalog = database.get_default_catalog()
-        information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'VIEW'
-        """  # noqa: S608
 
         views = set()
         try:
+            information_schema = cls._information_schema_ref(schema, catalog)
+            query = cls._table_names_query(information_schema, "VIEW")
             with database.get_raw_connection(catalog=catalog, schema=schema) as conn:
                 cursor = conn.cursor()
                 cursor.execute(query)
