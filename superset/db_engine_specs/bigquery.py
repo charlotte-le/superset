@@ -32,7 +32,7 @@ from flask import current_app, g, has_app_context, has_request_context
 from flask_babel import gettext as __
 from marshmallow import fields, Schema
 from marshmallow.exceptions import ValidationError
-from sqlalchemy import column, func, types
+from sqlalchemy import column, func, text, types
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.engine.reflection import Inspector
@@ -1114,6 +1114,19 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
             return f"`{escaped_catalog}.{escaped_schema}.INFORMATION_SCHEMA.TABLES`"
         return f"`{escaped_schema}.INFORMATION_SCHEMA.TABLES`"
 
+    @staticmethod
+    def _information_schema_query(information_schema: str, table_type: str) -> str:
+        # Build the statement with SQLAlchemy so the query is assembled from
+        # constructs rather than interpolated into a raw SQL string. The
+        # information schema reference is a pre-escaped identifier and the
+        # table type is bound as a literal by the compiler.
+        statement = (
+            select(column("table_name"))
+            .select_from(text(information_schema))
+            .where(column("table_type") == table_type)
+        )
+        return str(statement.compile(compile_kwargs={"literal_binds": True}))
+
     @classmethod
     def get_materialized_view_names(
         cls,
@@ -1132,11 +1145,7 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
 
         catalog = database.get_default_catalog()
         information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'MATERIALIZED VIEW'
-        """  # noqa: S608
+        query = cls._information_schema_query(information_schema, "MATERIALIZED VIEW")
 
         materialized_views = set()
         try:
@@ -1172,11 +1181,7 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
 
         catalog = database.get_default_catalog()
         information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'VIEW'
-        """  # noqa: S608
+        query = cls._information_schema_query(information_schema, "VIEW")
 
         views = set()
         try:
