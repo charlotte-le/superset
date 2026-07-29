@@ -21,15 +21,7 @@ from typing import Any, Optional
 
 from flask import current_app, Flask
 from flask_babel import lazy_gettext as _
-from sqlalchemy import (
-    and_,
-    bindparam,
-    column,
-    Table,
-    table as sa_table,
-    text,
-    TypeDecorator,
-)
+from sqlalchemy import sql, Table, text, TypeDecorator
 from sqlalchemy.engine import Connection, Dialect, Row
 from sqlalchemy_utils import EncryptedType as SqlaEncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import (
@@ -524,19 +516,14 @@ class SecretsMigrator:
             return
 
         pk_bind = {f"_pk_{pk}": row._mapping[pk] for pk in pk_columns}
-        target = sa_table(
-            table_name,
-            *(column(name) for name in [*re_encrypted_columns, *pk_columns]),
+        cols = [*re_encrypted_columns, *pk_columns]
+        target = sql.table(table_name, *map(sql.column, cols))
+        where = sql.and_(
+            *(target.c[pk] == sql.bindparam(f"_pk_{pk}") for pk in pk_columns)
         )
-        update_stmt = (
-            target.update()
-            .where(and_(*(target.c[pk] == bindparam(f"_pk_{pk}") for pk in pk_columns)))
-            .values({name: bindparam(name) for name in re_encrypted_columns})
-        )
-        conn.execute(
-            update_stmt,
-            {**pk_bind, **re_encrypted_columns},
-        )
+        values = {name: sql.bindparam(name) for name in re_encrypted_columns}
+        stmt = target.update().where(where).values(values)
+        conn.execute(stmt, {**pk_bind, **re_encrypted_columns})
 
     def _re_encrypt_conditional_table(
         self,
