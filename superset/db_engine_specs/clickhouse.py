@@ -26,7 +26,7 @@ from flask import current_app as app
 from flask_babel import gettext as __
 from marshmallow import fields, Schema
 from marshmallow.validate import Range
-from sqlalchemy import types
+from sqlalchemy import literal_column, select, text, types
 from sqlalchemy.engine.url import URL
 from urllib3.exceptions import NewConnectionError
 
@@ -541,5 +541,10 @@ class ClickHouseConnectEngineSpec(BasicParametersMixin, ClickHouseEngineSpec):
         # SQL comments inserted by SQL_QUERY_MUTATOR (e.g. query attribution)
         # defeat that check, so wrap the untouched, already-mutated SQL in a
         # bare outer SELECT to satisfy it without altering or dropping any of
-        # the mutator's comments.
-        return f"SELECT * FROM (\n{sql}\n) AS __superset_type_probe LIMIT 0"  # noqa: S608
+        # the mutator's comments. The wrapper is built with SQLAlchemy so the
+        # inner statement is carried as an opaque text element rather than
+        # interpolated into a SQL string; the surrounding newlines keep any
+        # trailing line comment from swallowing the closing parenthesis.
+        probe = text(f"\n{sql}\n").columns().subquery(name="__superset_type_probe")
+        statement = select(literal_column("*")).select_from(probe).limit(0)
+        return str(statement.compile(compile_kwargs={"literal_binds": True}))
