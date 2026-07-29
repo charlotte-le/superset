@@ -80,10 +80,10 @@ def _dedupe_user_attributes():
     value) so nothing is silently lost, then the redundant rows are deleted.
     """
     bind = op.get_bind()
-    columns = ", ".join(("id", "user_id", *MERGE_COLUMNS))
-    rows = bind.execute(
-        sa.text(f"SELECT {columns} FROM {TABLE} ORDER BY id")  # noqa: S608
-    ).fetchall()
+    table = sa.table(
+        TABLE, *(sa.column(name) for name in ("id", "user_id", *MERGE_COLUMNS))
+    )
+    rows = bind.execute(sa.select(table).order_by(table.c.id)).fetchall()
 
     by_user: dict[int, list] = {}
     for row in rows:
