@@ -310,10 +310,8 @@ class SecretsMigrator:
         column_names: list[str],
         table_name: str,
     ) -> Row:
-        selectable = sa_table(
-            table_name, *(column(name) for name in pk_columns + column_names)
-        ).select()
-        return conn.execute(selectable)
+        cols = (column(name) for name in pk_columns + column_names)
+        return conn.execute(sa_table(table_name, *cols).select())
 
     def _target_type(self, encrypted_type: EncryptedType) -> EncryptedType:
         """The EncryptedType to re-encrypt a value *into*.
