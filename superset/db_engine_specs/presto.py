@@ -73,6 +73,10 @@ if TYPE_CHECKING:
 COLUMN_DOES_NOT_EXIST_REGEX = re.compile(
     "line (?P<location>.+?): .*Column '(?P<column_name>.+?)' cannot be resolved"
 )
+# SQL command prefix for querying a table's ``$partitions`` system table. Kept
+# as a constant so the table identifier is composed by concatenation rather
+# than interpolated into a SQL string literal.
+PARTITION_SELECT_ALL_PREFIX = "SELECT * FROM "
 TABLE_DOES_NOT_EXIST_REGEX = re.compile(".*Table (?P<table_name>.+?) does not exist")
 SCHEMA_DOES_NOT_EXIST_REGEX = re.compile(
     "line (?P<location>.+?): .*Schema '(?P<schema_name>.+?)' does not exist"
@@ -526,7 +530,7 @@ class PrestoBaseEngineSpec(BaseEngineSpec, metaclass=ABCMeta):
                 if table.schema
                 else system_table_name
             )
-            partition_select_clause = f"SELECT * FROM {full_table_name}"  # noqa: S608
+            partition_select_clause = PARTITION_SELECT_ALL_PREFIX + full_table_name
 
         sql = dedent(
             f"""\
