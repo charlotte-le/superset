@@ -46,6 +46,17 @@ UQ = "uq_user_attribute_user_id"
 
 MERGE_COLUMNS = ("avatar_url", "welcome_dashboard_id", "sessions_invalidated_at")
 
+# Lightweight table stub used to build the data-migration statements as SQLAlchemy
+# expressions, so no SQL is assembled through string formatting.
+USER_ATTRIBUTE = sa.table(
+    TABLE,
+    sa.column("id"),
+    sa.column("user_id"),
+    sa.column("created_on"),
+    sa.column("changed_on"),
+    *(sa.column(name) for name in MERGE_COLUMNS),
+)
+
 
 def upgrade():
     add_columns(TABLE, sa.Column(COLUMN, sa.DateTime(), nullable=True))
@@ -80,9 +91,12 @@ def _dedupe_user_attributes():
     value) so nothing is silently lost, then the redundant rows are deleted.
     """
     bind = op.get_bind()
-    columns = ", ".join(("id", "user_id", *MERGE_COLUMNS))
     rows = bind.execute(
-        sa.text(f"SELECT {columns} FROM {TABLE} ORDER BY id")  # noqa: S608
+        sa.select(
+            USER_ATTRIBUTE.c.id,
+            USER_ATTRIBUTE.c.user_id,
+            *(USER_ATTRIBUTE.c[name] for name in MERGE_COLUMNS),
+        ).order_by(USER_ATTRIBUTE.c.id)
     ).fetchall()
 
     by_user: dict[int, list] = {}
@@ -107,16 +121,15 @@ def _dedupe_user_attributes():
                     updates[column] = dup[column]
                     break
         if updates:
-            assignments = ", ".join(f"{col} = :{col}" for col in updates)
             bind.execute(
-                sa.text(
-                    f"UPDATE {TABLE} SET {assignments} WHERE id = :id"  # noqa: S608
-                ),
-                {**updates, "id": keeper["id"]},
+                USER_ATTRIBUTE.update()
+                .where(USER_ATTRIBUTE.c.id == keeper["id"])
+                .values(updates)
             )
         bind.execute(
-            sa.text(f"DELETE FROM {TABLE} WHERE id = :id"),  # noqa: S608
-            [{"id": dup["id"]} for dup in duplicates],
+            USER_ATTRIBUTE.delete().where(
+                USER_ATTRIBUTE.c.id.in_([dup["id"] for dup in duplicates])
+            )
         )
 
 
@@ -146,27 +159,29 @@ def _backfill_disabled_users():
 
     existing = {
         row._mapping["user_id"]
-        for row in bind.execute(
-            sa.text(f"SELECT user_id FROM {TABLE}")  # noqa: S608
-        ).fetchall()
+        for row in bind.execute(sa.select(USER_ATTRIBUTE.c.user_id)).fetchall()
     }
 
     for user_id in disabled_user_ids:
         if user_id in existing:
             bind.execute(
-                sa.text(
-                    f"UPDATE {TABLE} SET {COLUMN} = :now, changed_on = :now "  # noqa: S608, E501
-                    f"WHERE user_id = :user_id AND {COLUMN} IS NULL"
-                ),
-                {"now": now, "user_id": user_id},
+                USER_ATTRIBUTE.update()
+                .where(
+                    USER_ATTRIBUTE.c.user_id == user_id,
+                    USER_ATTRIBUTE.c[COLUMN].is_(None),
+                )
+                .values({COLUMN: now, "changed_on": now})
             )
         else:
             bind.execute(
-                sa.text(
-                    f"INSERT INTO {TABLE} (user_id, {COLUMN}, created_on, changed_on) "  # noqa: S608, E501
-                    "VALUES (:user_id, :now, :now, :now)"
-                ),
-                {"now": now, "user_id": user_id},
+                USER_ATTRIBUTE.insert().values(
+                    {
+                        "user_id": user_id,
+                        COLUMN: now,
+                        "created_on": now,
+                        "changed_on": now,
+                    }
+                )
             )
 
 
