@@ -49,6 +49,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+FUNCTION_NAMES_QUERY = (
+    "SELECT name FROM system.functions "
+    "UNION ALL "
+    "SELECT name FROM system.table_functions "
+    "LIMIT 10000"
+)
+
 
 class ClickHouseBaseEngineSpec(BaseEngineSpec):
     """Shared engine spec for ClickHouse."""
@@ -404,10 +411,7 @@ class ClickHouseConnectEngineSpec(BasicParametersMixin, ClickHouseEngineSpec):
         if cls._function_names:
             return cls._function_names
         try:
-            names = database.get_df(
-                "SELECT name FROM system.functions UNION ALL "  # noqa: S608
-                + "SELECT name FROM system.table_functions LIMIT 10000"
-            )["name"].tolist()
+            names = database.get_df(FUNCTION_NAMES_QUERY)["name"].tolist()
             cls._function_names = names
             return names
         except ClickHouseError:
