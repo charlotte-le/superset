@@ -44,7 +44,19 @@ INDEX = "ix_user_attribute_sessions_invalidated_at"
 UQ = "uq_user_attribute_user_id"
 
 
+# Static SQL statements; all values travel as bound parameters.
+DELETE_ATTRIBUTE_SQL = "DELETE FROM user_attribute WHERE id = :id"
 MERGE_COLUMNS = ("avatar_url", "welcome_dashboard_id", "sessions_invalidated_at")
+SELECT_USER_IDS_SQL = "SELECT user_id FROM user_attribute"
+STAMP_EPOCH_SQL = (
+    "UPDATE user_attribute SET sessions_invalidated_at = :now, changed_on = :now "
+    "WHERE user_id = :user_id AND sessions_invalidated_at IS NULL"
+)
+INSERT_EPOCH_SQL = (
+    "INSERT INTO user_attribute "
+    "(user_id, sessions_invalidated_at, created_on, changed_on) "
+    "VALUES (:user_id, :now, :now, :now)"
+)
 
 
 def upgrade():
@@ -115,7 +127,7 @@ def _dedupe_user_attributes():
                 table.update().where(table.c.id == keeper["id"]).values(**updates)
             )
         bind.execute(
-            sa.text(f"DELETE FROM {TABLE} WHERE id = :id"),  # noqa: S608
+            sa.text(DELETE_ATTRIBUTE_SQL),
             [{"id": dup["id"]} for dup in duplicates],
         )
 
@@ -146,26 +158,18 @@ def _backfill_disabled_users():
 
     existing = {
         row._mapping["user_id"]
-        for row in bind.execute(
-            sa.text(f"SELECT user_id FROM {TABLE}")  # noqa: S608
-        ).fetchall()
+        for row in bind.execute(sa.text(SELECT_USER_IDS_SQL)).fetchall()
     }
 
     for user_id in disabled_user_ids:
         if user_id in existing:
             bind.execute(
-                sa.text(
-                    f"UPDATE {TABLE} SET {COLUMN} = :now, changed_on = :now "  # noqa: S608, E501
-                    f"WHERE user_id = :user_id AND {COLUMN} IS NULL"
-                ),
+                sa.text(STAMP_EPOCH_SQL),
                 {"now": now, "user_id": user_id},
             )
         else:
             bind.execute(
-                sa.text(
-                    f"INSERT INTO {TABLE} (user_id, {COLUMN}, created_on, changed_on) "  # noqa: S608, E501
-                    "VALUES (:user_id, :now, :now, :now)"
-                ),
+                sa.text(INSERT_EPOCH_SQL),
                 {"now": now, "user_id": user_id},
             )
 
