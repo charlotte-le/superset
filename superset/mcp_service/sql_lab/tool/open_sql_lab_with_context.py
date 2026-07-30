@@ -25,6 +25,7 @@ import logging
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from fastmcp import Context
+from sqlglot import exp
 from superset_core.mcp.decorators import tool, ToolAnnotations
 
 from superset.extensions import db, event_logger
@@ -142,15 +143,26 @@ def open_sql_lab_with_context(
                     f"-- Context: Working with dataset '{request.dataset_in_context}'\n"
                     f"-- Database: {database.database_name}\n"
                 )
+                schema_identifier = None
                 if request.schema_name:
                     context_comment += f"-- Schema: {request.schema_name}\n"
-                    table_reference = (
-                        f"{request.schema_name}.{request.dataset_in_context}"
-                    )
-                else:
-                    table_reference = request.dataset_in_context
+                    schema_identifier = exp.to_identifier(request.schema_name)
 
-                context_comment += f"\nSELECT * FROM {table_reference} LIMIT 100;"
+                # Build the preview query through sqlglot so dataset and schema
+                # names are emitted as properly quoted identifiers.
+                preview_query = (
+                    exp.select(exp.Star())
+                    .from_(
+                        exp.table_(
+                            exp.to_identifier(request.dataset_in_context),
+                            db=schema_identifier,
+                        )
+                    )
+                    .limit(100)
+                    .sql()
+                )
+
+                context_comment += f"\n{preview_query};"
                 params["sql"] = context_comment
 
         # Construct SQL Lab URL with full base URL
