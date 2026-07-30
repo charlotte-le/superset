@@ -107,16 +107,17 @@ def _dedupe_user_attributes():
                     updates[column] = dup[column]
                     break
         if updates:
-            table = sa.table(
+            update_table = sa.table(
                 TABLE,
                 *(sa.column(c) for c in ("id", *updates)),
             )
             bind.execute(
-                table.update().where(table.c.id == keeper["id"]).values(**updates)
+                update_table.update()
+                .where(update_table.c.id == keeper["id"])
+                .values(**updates)
             )
         bind.execute(
-            sa.text(f"DELETE FROM {TABLE} WHERE id = :id"),  # noqa: S608
-            [{"id": dup["id"]} for dup in duplicates],
+            table.delete().where(table.c.id.in_([dup["id"] for dup in duplicates]))
         )
 
 
