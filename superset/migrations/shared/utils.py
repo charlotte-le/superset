@@ -24,12 +24,14 @@ from uuid import uuid4
 from alembic import op
 from sqlalchemy import (
     Column,
+    column as sa_column,
     inspect,
     JSON,
     MetaData,
     select,
     String,
     Table,
+    table as sa_table,
     text,
     update,
 )
@@ -130,9 +132,7 @@ def assign_uuids(
     for dialect, sql in uuid_by_dialect.items():
         if isinstance(bind.dialect, dialect):
             op.execute(
-                text(
-                    f"UPDATE {dialect().identifier_preparer.quote(table_name)} SET uuid = {sql}"  # noqa: S608, E501
-                )
+                update(sa_table(table_name, sa_column("uuid"))).values(uuid=text(sql))
             )
             print(f"Done. Assigned {count} uuids in {time.time() - start_time:.3f}s.\n")
             return
