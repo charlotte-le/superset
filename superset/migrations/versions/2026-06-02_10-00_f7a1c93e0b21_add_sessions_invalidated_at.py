@@ -114,9 +114,11 @@ def _dedupe_user_attributes():
             bind.execute(
                 table.update().where(table.c.id == keeper["id"]).values(**updates)
             )
+        dup_table = sa.table(TABLE, sa.column("id"))
         bind.execute(
-            sa.text(f"DELETE FROM {TABLE} WHERE id = :id"),  # noqa: S608
-            [{"id": dup["id"]} for dup in duplicates],
+            dup_table.delete().where(
+                dup_table.c.id.in_([dup["id"] for dup in duplicates])
+            )
         )
 
 
