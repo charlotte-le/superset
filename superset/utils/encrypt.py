@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from flask import current_app, Flask
 from flask_babel import lazy_gettext as _
-from sqlalchemy import Table, text, TypeDecorator
+from sqlalchemy import select, Table, text, TypeDecorator
 from sqlalchemy.engine import Connection, Dialect, Row
 from sqlalchemy_utils import EncryptedType as SqlaEncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import (
@@ -582,12 +582,8 @@ class SecretsMigrator:
             engine=current_engine,
         )
 
-        cols = ", ".join(pk_columns + [value_col])
-        rows = conn.execute(
-            text(
-                f"SELECT {cols} FROM {table_name} WHERE {flag_col} = true"  # noqa: S608
-            )
-        )
+        selected = [table.c[col] for col in pk_columns + [value_col]]
+        rows = conn.execute(select(*selected).where(table.c[flag_col].is_(True)))
         for row in rows:
             self._re_encrypt_row(
                 conn,
