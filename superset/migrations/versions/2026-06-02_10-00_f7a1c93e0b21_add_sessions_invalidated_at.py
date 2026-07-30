@@ -151,22 +151,27 @@ def _backfill_disabled_users():
         ).fetchall()
     }
 
+    table = sa.table(
+        TABLE,
+        *(sa.column(name) for name in ("user_id", COLUMN, "created_on", "changed_on")),
+    )
     for user_id in disabled_user_ids:
         if user_id in existing:
             bind.execute(
-                sa.text(
-                    f"UPDATE {TABLE} SET {COLUMN} = :now, changed_on = :now "  # noqa: S608, E501
-                    f"WHERE user_id = :user_id AND {COLUMN} IS NULL"
-                ),
-                {"now": now, "user_id": user_id},
+                table.update()
+                .where(table.c.user_id == user_id, table.c[COLUMN].is_(None))
+                .values({COLUMN: now, "changed_on": now})
             )
         else:
             bind.execute(
-                sa.text(
-                    f"INSERT INTO {TABLE} (user_id, {COLUMN}, created_on, changed_on) "  # noqa: S608, E501
-                    "VALUES (:user_id, :now, :now, :now)"
-                ),
-                {"now": now, "user_id": user_id},
+                table.insert().values(
+                    {
+                        "user_id": user_id,
+                        COLUMN: now,
+                        "created_on": now,
+                        "changed_on": now,
+                    }
+                )
             )
 
 
