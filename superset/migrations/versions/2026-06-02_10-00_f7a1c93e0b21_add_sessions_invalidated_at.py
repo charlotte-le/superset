@@ -45,10 +45,6 @@ UQ = "uq_user_attribute_user_id"
 
 
 # Static SQL statements; all values travel as bound parameters.
-SELECT_ATTRIBUTES_SQL = (
-    "SELECT id, user_id, avatar_url, welcome_dashboard_id, sessions_invalidated_at "
-    "FROM user_attribute ORDER BY id"
-)
 DELETE_ATTRIBUTE_SQL = "DELETE FROM user_attribute WHERE id = :id"
 MERGE_COLUMNS = ("avatar_url", "welcome_dashboard_id", "sessions_invalidated_at")
 SELECT_USER_IDS_SQL = "SELECT user_id FROM user_attribute"
@@ -96,7 +92,10 @@ def _dedupe_user_attributes():
     value) so nothing is silently lost, then the redundant rows are deleted.
     """
     bind = op.get_bind()
-    rows = bind.execute(sa.text(SELECT_ATTRIBUTES_SQL)).fetchall()
+    table = sa.table(
+        TABLE, *(sa.column(name) for name in ("id", "user_id", *MERGE_COLUMNS))
+    )
+    rows = bind.execute(sa.select(table).order_by(table.c.id)).fetchall()
 
     by_user: dict[int, list] = {}
     for row in rows:
