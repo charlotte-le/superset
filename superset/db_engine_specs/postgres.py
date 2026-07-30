@@ -871,9 +871,7 @@ WHERE datistemplate = false;
 
         try:
             cursor.execute(
-                "SELECT pg_terminate_backend(pid) "
-                "FROM pg_stat_activity "
-                "WHERE pid=%s",
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid=%s",
                 (cancel_query_id,),
             )
         except Exception:  # pylint: disable=broad-except
