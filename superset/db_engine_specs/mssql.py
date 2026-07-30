@@ -192,10 +192,11 @@ class MssqlEngineSpec(BaseEngineSpec):
     @classmethod
     def extract_error_message(cls, ex: Exception) -> str:
         if str(ex).startswith("(8155,"):
-            return (
-                f"{cls.engine} error: All your SQL functions need to "  # noqa: S608
-                "have an alias on MSSQL. For example: SELECT COUNT(*) AS C1 FROM TABLE1"
+            message = (
+                "All your SQL functions need to have an alias on MSSQL. "
+                "For example: SELECT COUNT(*) AS C1 FROM TABLE1"
             )
+            return f"{cls.engine} error: {message}"
         return f"{cls.engine} error: {cls._extract_error_message(ex)}"
 
 
