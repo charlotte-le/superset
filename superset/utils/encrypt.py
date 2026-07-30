@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from flask import current_app, Flask
 from flask_babel import lazy_gettext as _
-from sqlalchemy import Table, text, TypeDecorator
+from sqlalchemy import select, Table, text, TypeDecorator
 from sqlalchemy.engine import Connection, Dialect, Row
 from sqlalchemy_utils import EncryptedType as SqlaEncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import (
@@ -308,10 +308,10 @@ class SecretsMigrator:
         conn: Connection,
         pk_columns: list[str],
         column_names: list[str],
-        table_name: str,
+        table: Table,
     ) -> Row:
-        cols = ",".join(pk_columns + column_names)
-        return conn.execute(text(f"SELECT {cols} FROM {table_name}"))  # noqa: S608
+        cols = [table.c[name] for name in pk_columns + column_names]
+        return conn.execute(select(*cols))
 
     def _target_type(self, encrypted_type: EncryptedType) -> EncryptedType:
         """The EncryptedType to re-encrypt a value *into*.
@@ -624,7 +624,7 @@ class SecretsMigrator:
                     continue
                 column_names = list(columns.keys())
                 rows = self._select_columns_from_table(
-                    conn, pk_columns, column_names, table_name
+                    conn, pk_columns, column_names, table
                 )
 
                 for row in rows:
