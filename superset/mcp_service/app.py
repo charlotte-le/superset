@@ -91,7 +91,7 @@ def get_default_instructions(
     _unsure_guidance = _SNIPPET_UNSURE_GUIDANCE if _show else ""
     _connect_guidance = _SNIPPET_CONNECT_GUIDANCE if _show else ""
 
-    instructions = f"""
+    _template = """
 You are connected to the {branding} MCP (Model Context Protocol) service.
 This service provides programmatic access to {branding} dashboards, charts, datasets,
 SQL Lab, and instance metadata via a comprehensive set of tools.
@@ -536,6 +536,14 @@ Input format:
   2. Suggest they ask a workspace admin to grant them access or share content with them
   3. Offer to help with what they CAN do (e.g., viewing dashboards they have access to)
 {_accessible_menus_bullet}{_unsure_guidance}{_connect_guidance}"""
+    instructions = _template.format(
+        branding=branding,
+        _feature_availability=_feature_availability,
+        _instance_info_role_bullet=_instance_info_role_bullet,
+        _accessible_menus_bullet=_accessible_menus_bullet,
+        _unsure_guidance=_unsure_guidance,
+        _connect_guidance=_connect_guidance,
+    )
     if not _disabled:
         return instructions
 
