@@ -211,7 +211,7 @@ async def create_virtual_dataset(
             database_id=request.database_id,
             columns=[],
             url=None,
-            error=f"Failed to update dataset metadata (creation rolled back): {exc}",
+            error=f"Failed to apply metadata changes (creation rolled back): {exc}",
         )
     except Exception as exc:
         await ctx.error(
