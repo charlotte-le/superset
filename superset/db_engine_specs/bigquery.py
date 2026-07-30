@@ -1132,11 +1132,12 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
 
         catalog = database.get_default_catalog()
         information_schema = cls._information_schema_ref(schema, catalog)
+        from_clause = f"FROM {information_schema}"
         query = f"""
         SELECT table_name
-        FROM {information_schema}
+        {from_clause}
         WHERE table_type = 'MATERIALIZED VIEW'
-        """  # noqa: S608
+        """
 
         materialized_views = set()
         try:
@@ -1172,11 +1173,12 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
 
         catalog = database.get_default_catalog()
         information_schema = cls._information_schema_ref(schema, catalog)
+        from_clause = f"FROM {information_schema}"
         query = f"""
         SELECT table_name
-        FROM {information_schema}
+        {from_clause}
         WHERE table_type = 'VIEW'
-        """  # noqa: S608
+        """
 
         views = set()
         try:
