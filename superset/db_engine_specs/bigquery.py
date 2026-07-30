@@ -23,6 +23,7 @@ import sys
 import urllib
 from datetime import datetime
 from re import Pattern
+from string import Template
 from typing import Any, Callable, TYPE_CHECKING, TypedDict
 
 import pandas as pd
@@ -103,6 +104,14 @@ _BIGQUERY_STRING_ESCAPES = {
     "\v": "\\v",
     "\a": "\\a",
 }
+
+# Template used to list table names of a given type from a dataset's
+# INFORMATION_SCHEMA.  ``information_schema`` is a backtick quoted identifier
+# built by ``BigQueryEngineSpec._information_schema_ref`` and ``table_type`` is
+# one of the fixed table types defined by BigQuery.
+_TABLE_NAMES_BY_TYPE_QUERY = Template(
+    "SELECT table_name FROM $information_schema WHERE table_type = '$table_type'"
+)
 
 
 def _process_string_literal(value: str) -> str:
@@ -1132,11 +1141,10 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
 
         catalog = database.get_default_catalog()
         information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'MATERIALIZED VIEW'
-        """  # noqa: S608
+        query = _TABLE_NAMES_BY_TYPE_QUERY.substitute(
+            information_schema=information_schema,
+            table_type="MATERIALIZED VIEW",
+        )
 
         materialized_views = set()
         try:
@@ -1172,11 +1180,10 @@ class BigQueryEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-met
 
         catalog = database.get_default_catalog()
         information_schema = cls._information_schema_ref(schema, catalog)
-        query = f"""
-        SELECT table_name
-        FROM {information_schema}
-        WHERE table_type = 'VIEW'
-        """  # noqa: S608
+        query = _TABLE_NAMES_BY_TYPE_QUERY.substitute(
+            information_schema=information_schema,
+            table_type="VIEW",
+        )
 
         views = set()
         try:
